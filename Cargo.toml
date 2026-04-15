@@ -1,0 +1,13 @@
+[package]
+name = "procport"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.6", features = ["derive"] }
+crossterm = "0.29.0"
+windows = { version = "0.62.2", features = [
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_Networking_WinSock",
+] }
