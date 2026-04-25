@@ -1,4 +1,7 @@
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::{
+    fmt::Display,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
+};
 
 use windows::{
     Win32::{
@@ -18,10 +21,19 @@ use windows::{
     core::Error,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Protocol {
     Tcp,
     // Udp,
+}
+
+impl Display for Protocol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Protocol::Tcp => write!(f, "TCP"),
+            // Protocol::Udp => write!(f, "UDP"),
+        }
+    }
 }
 
 #[derive(Debug)]
