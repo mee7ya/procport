@@ -12,7 +12,7 @@ use crate::windows::{Connection, Protocol};
 
 #[derive(Parser, Debug)]
 #[command(name = "procport")]
-#[command(about = "Display ports used by a process", long_about = None)]
+#[command(about = "Displays active TCP connections associated with a process", long_about = None)]
 pub struct Cli {
     /// Process name to search for
     process_name: String,
