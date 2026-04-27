@@ -21,7 +21,7 @@ use windows::{
     core::Error,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Protocol {
     Tcp,
     // Udp,
@@ -36,12 +36,19 @@ impl Display for Protocol {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq)]
 pub struct Connection {
     pub protocol: Protocol,
     pub local: SocketAddr,
     pub remote: SocketAddr,
     pub pid: u32,
+    pub active: bool,
+}
+
+impl PartialEq for Connection {
+    fn eq(&self, other: &Self) -> bool {
+        self.local == other.local && self.remote == other.remote && self.pid == other.pid
+    }
 }
 
 /// Returns all PIDs whose executable name matches `process_name` (case-insensitive).
@@ -114,6 +121,7 @@ pub fn get_connections_by_pids(pids: &[u32]) -> Result<Vec<Connection>, Error> {
                     u16::from_be(row.dwRemotePort as u16),
                 ),
                 pid: row.dwOwningPid,
+                active: true,
             })
         } else {
             None
@@ -132,6 +140,7 @@ pub fn get_connections_by_pids(pids: &[u32]) -> Result<Vec<Connection>, Error> {
                     u16::from_be(row.dwRemotePort as u16),
                 ),
                 pid: row.dwOwningPid,
+                active: true,
             })
         } else {
             None

@@ -6,7 +6,7 @@ mod cli;
 mod windows;
 
 fn main() -> Result<()> {
-    let cli = Cli::new();
+    let mut cli = Cli::new();
 
     cli.start()?;
 
