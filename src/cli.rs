@@ -14,11 +14,15 @@ use crate::windows::{Connection, Protocol};
 #[command(name = "procport")]
 #[command(about = "Displays active TCP connections associated with a process", long_about = None)]
 pub struct Cli {
-    /// Process name to search for
+    /// Process name to search for.
     process_name: String,
-    /// Keep history of connections
+    /// Keep history of connections.
     #[arg(long)]
     preserve_history: bool,
+    /// Attempt to unwrap loopback addresses into actual destination addresses.
+    /// This can lead to displaying addresses the process isn't actually communicating with.
+    #[arg(long)]
+    unwrap_loopbacks: bool,
 
     #[arg(skip)]
     pids: Vec<u32>,
@@ -42,8 +46,41 @@ impl Cli {
         Ok(())
     }
 
+    fn filter_connections(&self, connections: Vec<Connection>) -> Vec<Connection> {
+        if self.unwrap_loopbacks {
+            // Get all loopback ports used by the process
+            let loopback_ports = connections
+                .iter()
+                .filter_map(|connection| {
+                    if self.pids.contains(&connection.pid) && connection.remote.ip().is_loopback() {
+                        Some(connection.remote.port())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            // Return all connections that are either:
+            // - Active connections of the process that aren't loopback
+            // - Connections that listen on loopback ports indirectly used by the process
+            connections
+                .into_iter()
+                .filter(|connection| {
+                    (self.pids.contains(&connection.pid) && !connection.remote.ip().is_loopback())
+                        || (connection.local.ip().is_loopback()
+                            && loopback_ports.contains(&connection.local.port()))
+                })
+                .collect()
+        } else {
+            connections
+                .into_iter()
+                .filter(|connection| self.pids.contains(&connection.pid))
+                .collect()
+        }
+    }
+
     fn get_connections(&mut self) -> Result<()> {
-        let connections = crate::windows::get_connections_by_pids(&self.pids)?;
+        let connections = self.filter_connections(crate::windows::get_connections()?);
 
         if !self.preserve_history {
             // No need to merge with history
