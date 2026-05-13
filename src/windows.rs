@@ -36,7 +36,7 @@ impl Display for Protocol {
     }
 }
 
-#[derive(Debug, Eq)]
+#[derive(Debug, Eq, Clone, Copy)]
 pub struct Connection {
     pub protocol: Protocol,
     pub local: SocketAddr,
@@ -107,44 +107,33 @@ pub fn get_pids_by_name(process_name: &str) -> Result<Vec<u32>, Error> {
 }
 
 /// Returns all TCP connections filtered by `pids`
-pub fn get_connections_by_pids(pids: &[u32]) -> Result<Vec<Connection>, Error> {
-    let tcp4 = get_tcp4_table()?.into_iter().filter_map(|row| {
-        if pids.contains(&row.dwOwningPid) {
-            Some(Connection {
-                protocol: Protocol::Tcp,
-                local: SocketAddr::new(
-                    IpAddr::V4(Ipv4Addr::from(row.dwLocalAddr.to_be())),
-                    u16::from_be(row.dwLocalPort as u16),
-                ),
-                remote: SocketAddr::new(
-                    IpAddr::V4(Ipv4Addr::from(row.dwRemoteAddr.to_be())),
-                    u16::from_be(row.dwRemotePort as u16),
-                ),
-                pid: row.dwOwningPid,
-                active: true,
-            })
-        } else {
-            None
-        }
+pub fn get_connections() -> Result<Vec<Connection>, Error> {
+    let tcp4 = get_tcp4_table()?.into_iter().map(|row| Connection {
+        protocol: Protocol::Tcp,
+        local: SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::from(row.dwLocalAddr.to_be())),
+            u16::from_be(row.dwLocalPort as u16),
+        ),
+        remote: SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::from(row.dwRemoteAddr.to_be())),
+            u16::from_be(row.dwRemotePort as u16),
+        ),
+        pid: row.dwOwningPid,
+        active: true,
     });
-    let tcp6 = get_tcp6_table()?.into_iter().filter_map(|row| {
-        if pids.contains(&row.dwOwningPid) {
-            Some(Connection {
-                protocol: Protocol::Tcp,
-                local: SocketAddr::new(
-                    IpAddr::V6(Ipv6Addr::from(row.ucLocalAddr)),
-                    u16::from_be(row.dwLocalPort as u16),
-                ),
-                remote: SocketAddr::new(
-                    IpAddr::V6(Ipv6Addr::from(row.ucRemoteAddr)),
-                    u16::from_be(row.dwRemotePort as u16),
-                ),
-                pid: row.dwOwningPid,
-                active: true,
-            })
-        } else {
-            None
-        }
+
+    let tcp6 = get_tcp6_table()?.into_iter().map(|row| Connection {
+        protocol: Protocol::Tcp,
+        local: SocketAddr::new(
+            IpAddr::V6(Ipv6Addr::from(row.ucLocalAddr)),
+            u16::from_be(row.dwLocalPort as u16),
+        ),
+        remote: SocketAddr::new(
+            IpAddr::V6(Ipv6Addr::from(row.ucRemoteAddr)),
+            u16::from_be(row.dwRemotePort as u16),
+        ),
+        pid: row.dwOwningPid,
+        active: true,
     });
 
     // let udp4 = get_udp4_table()?.into_iter().filter(|row| pids.contains(&row.dwOwningPid));

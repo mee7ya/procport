@@ -1,4 +1,4 @@
-use std::{io, net::SocketAddr, thread, time::Duration};
+use std::{collections::HashSet, io, net::SocketAddr, thread, time::Duration};
 
 use anyhow::Result;
 use clap::Parser;
@@ -14,11 +14,15 @@ use crate::windows::{Connection, Protocol};
 #[command(name = "procport")]
 #[command(about = "Displays active TCP connections associated with a process", long_about = None)]
 pub struct Cli {
-    /// Process name to search for
+    /// Process name to search for.
     process_name: String,
-    /// Keep history of connections
+    /// Keep history of connections.
     #[arg(long)]
     preserve_history: bool,
+    /// Attempt to unwrap loopback addresses into actual destination addresses.
+    /// This can lead to displaying addresses the process isn't actually communicating with.
+    #[arg(long)]
+    unwrap_loopbacks: bool,
 
     #[arg(skip)]
     pids: Vec<u32>,
@@ -42,8 +46,56 @@ impl Cli {
         Ok(())
     }
 
+    fn filter_connections(&self, connections: Vec<Connection>) -> Vec<Connection> {
+        if self.unwrap_loopbacks {
+            // Get all loopback ports used by the process
+            let loopback_ports = connections
+                .iter()
+                .filter_map(|connection| {
+                    if self.pids.contains(&connection.pid) && connection.remote.ip().is_loopback() {
+                        Some(connection.remote.port())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<HashSet<_>>();
+
+            // Get all PIDs that listen on those loopback ports
+            let loopback_pids = connections
+                .iter()
+                .filter_map(|connection| {
+                    if connection.local.ip().is_loopback()
+                        && loopback_ports.contains(&connection.local.port())
+                        && connection.pid != 0
+                    {
+                        Some(connection.pid)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<HashSet<_>>();
+
+            // Return all connections that are either:
+            // - Active connections of the process that aren't loopback
+            // - Active connections of the loopback process
+            connections
+                .into_iter()
+                .filter(|connection| {
+                    (self.pids.contains(&connection.pid) && !connection.remote.ip().is_loopback())
+                        || (loopback_pids.contains(&connection.pid)
+                            && !connection.local.ip().is_loopback())
+                })
+                .collect()
+        } else {
+            connections
+                .into_iter()
+                .filter(|connection| self.pids.contains(&connection.pid))
+                .collect()
+        }
+    }
+
     fn get_connections(&mut self) -> Result<()> {
-        let connections = crate::windows::get_connections_by_pids(&self.pids)?;
+        let connections = self.filter_connections(crate::windows::get_connections()?);
 
         if !self.preserve_history {
             // No need to merge with history
