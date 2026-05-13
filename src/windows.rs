@@ -36,7 +36,7 @@ impl Display for Protocol {
     }
 }
 
-#[derive(Debug, Eq)]
+#[derive(Debug, Eq, Clone, Copy)]
 pub struct Connection {
     pub protocol: Protocol,
     pub local: SocketAddr,

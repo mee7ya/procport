@@ -1,4 +1,4 @@
-use std::{io, net::SocketAddr, thread, time::Duration};
+use std::{collections::HashSet, io, net::SocketAddr, thread, time::Duration};
 
 use anyhow::Result;
 use clap::Parser;
@@ -58,17 +58,32 @@ impl Cli {
                         None
                     }
                 })
-                .collect::<Vec<_>>();
+                .collect::<HashSet<_>>();
+
+            // Get all PIDs that listen on those loopback ports
+            let loopback_pids = connections
+                .iter()
+                .filter_map(|connection| {
+                    if connection.local.ip().is_loopback()
+                        && loopback_ports.contains(&connection.local.port())
+                        && connection.pid != 0
+                    {
+                        Some(connection.pid)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<HashSet<_>>();
 
             // Return all connections that are either:
             // - Active connections of the process that aren't loopback
-            // - Connections that listen on loopback ports indirectly used by the process
+            // - Active connections of the loopback process
             connections
                 .into_iter()
                 .filter(|connection| {
                     (self.pids.contains(&connection.pid) && !connection.remote.ip().is_loopback())
-                        || (connection.local.ip().is_loopback()
-                            && loopback_ports.contains(&connection.local.port()))
+                        || (loopback_pids.contains(&connection.pid)
+                            && !connection.local.ip().is_loopback())
                 })
                 .collect()
         } else {
